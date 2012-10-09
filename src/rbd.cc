@@ -260,9 +260,9 @@ static int do_create(librbd::RBD &rbd, librados::IoCtx& io_ctx,
 {
   int r;
 
-  if (format == 1)
-    r = rbd.create(io_ctx, imgname, size, order);
-  else {
+  if (format == 1) {
+    r = rbd.create3(io_ctx, imgname, size, 0, order, stripe_unit, stripe_count);
+  } else {
     if (features == 0) {
       features = RBD_FEATURE_LAYERING;
     }
