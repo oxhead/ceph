@@ -264,3 +264,32 @@ Dir *Inode::open_dir()
   }
   return dir;
 }
+
+bool Inode::check_mode(uid_t ruid, gid_t rgid, gid_t *sgids, int sgids_count, uint32_t rflags)
+{
+  int fmode = 0;
+  // TODO: should we check that we get non-conflicting flags and return EINVAL otherwise?
+  if (rflags & O_WRONLY)
+      fmode = 2;
+  if (rflags & O_RDONLY)
+      fmode = 4;
+  if (rflags & O_RDWR)
+      fmode = 6;
+  // if uid is owner, owner entry determines access
+  if (uid == ruid) {
+    return mode & (fmode << 6);
+  }
+  // if a gid or sgid matches the owning group, group entry determines access
+  if (gid == rgid) {
+    return mode & (fmode << 3);
+  }
+  int i = 0;
+  for (; i < sgids_count; ++i) {
+    if (sgids[i] == gid) {
+      return mode & (fmode << 3);
+    }
+  }
+
+  // no uid/gid matches, the other entry determines access
+  return mode & fmode;
+}

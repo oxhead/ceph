@@ -683,6 +683,8 @@ private:
 		       snapid_t snapid=CEPH_NOSNAP, unsigned max_bytes=0);
   void encode_cap_message(MClientCaps *m, Capability *cap);
 
+  // check mode against requested flags
+  bool check_mode(int flags);
 
   // -- locks --
 public:

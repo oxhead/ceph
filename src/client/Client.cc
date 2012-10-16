@@ -3280,6 +3280,24 @@ void Client::handle_cap_grant(Inode *in, int mds, Cap *cap, MClientCaps *m)
   m->put();
 }
 
+int Client::check_permissions(Inode *in, int flags, int uid, int gid)
+{
+  gid_t *sgids = NULL;
+  int sgid_count = 0;
+  if (getgroups_cb) {
+    sgid_count = getgroups_cb(getgroups_cb_handle, uid, &sgids);
+    if (sgid_count < 0) {
+      ldout(cct, 3) << "getgroups failed!" << dendl;
+      return sgid_count;
+    }
+  }
+  // check permissions before doing anything else
+  if (!in->check_mode(uid, gid, sgids, sgid_count, flags)) {
+    return -EACCES;
+  }
+  return 0;
+}
+
 
 // -------------------
 // MOUNT
@@ -4887,11 +4905,6 @@ int Client::getdir(const char *relpath, list<string>& contents)
 }
 
 
-
-
-
-
-
 /****** file i/o **********/
 int Client::open(const char *relpath, int flags, mode_t mode) 
 {
@@ -5020,8 +5033,13 @@ int Client::_release_fh(Fh *f)
   return 0;
 }
 
-int Client::_open(Inode *in, int flags, mode_t mode, Fh **fhp, int uid, int gid) 
+int Client::_open(Inode *in, int flags, mode_t mode, Fh **fhp, int uid, int gid)
 {
+  int ret;
+  ret = check_permissions(in, flags, uid, gid);
+  if (ret < 0)
+    return ret;
+
   int cmode = ceph_flags_to_mode(flags);
   if (cmode < 0)
     return -EINVAL;
@@ -5748,6 +5766,13 @@ void Client::ll_register_ino_invalidate_cb(client_ino_callback_t cb, void *handl
   ino_invalidate_cb = cb;
   ino_invalidate_cb_handle = handle;
   async_ino_invalidator.start();
+}
+
+void Client::ll_register_getgroups_cb(client_getgroups_callback_t cb, void *handle)
+{
+  Mutex::Locker l(client_lock);
+  getgroups_cb = cb;
+  getgroups_cb_handle = handle;
 }
 
 int Client::_sync_fs()
